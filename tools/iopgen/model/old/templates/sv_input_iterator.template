@@ -1,0 +1,78 @@
+{% import 'helper_macros.template' as helper %}
+
+{% set class_name = 'sv_ip_' ~ name %}
+
+template<VectorProcessingStyle Vec, uint16_t PipelineOperatorCount, uint16_t ColumnCount>
+class {{ class_name }};
+
+{% for tsl_simd_extension in generated_extensions %}
+   {% set extension_ns = namespace(
+      simd_register_size = tsl_simd_extension['register_size'],
+      simd_register_name = tsl_simd_extension['tsl_extension_name'],
+      data_type = tsl_simd_extension['data_type'],
+      data_type_size_b = 0,
+      lanes_in_simd_reg_count = 0
+   )%}
+   {% set extension_ns.data_type_size_b = types[extension_ns.data_type]['size_b'] %}
+   {% set extension_ns.lanes_in_simd_reg_count = (extension_ns.simd_register_size / extension_ns.data_type_size_b) | int %}
+   {% for pipeline_ops_count in range(1, extension_ns.lanes_in_simd_reg_count+1) %}
+      {% for number_of_columns in range(1, pipeline_ops_count+1) %}
+         {% set implementation_ns = namespace(
+            lanes_per_pipeline_op_count = (extension_ns.lanes_in_simd_reg_count/pipeline_ops_count) | int,
+            unique_data_ptr_count = 0,
+            data_ptr_t = "data_ptr_t",
+            source_ptr_type = extension_ns.data_type ~ ' const * __restrict__ ',
+            parameter_name_prefix = 'data',
+            ctor_parameter_names_list = [],
+            ctor_parameter_initialization_list = [],
+            ptr_increment_list = []
+         )%}
+         {% for i in range(number_of_columns) %}
+            {% set param = implementation_ns.parameter_name_prefix ~ i %}
+            {% do implementation_ns.ctor_parameter_names_list.append(param) %}
+         {% endfor %}
+         {% if pipeline_ops_count == 1 %}
+            {# in this case, only a single address has to be stored (corner case: no sharing) #}
+            {% set implementation_ns.unique_data_ptr_count = 1 %}
+            {% set param_name = (implementation_ns.ctor_parameter_names_list | first) %}
+            {% do implementation_ns.ctor_parameter_initialization_list.append(param_name) %}
+            {% do implementation_ns.ptr_increment_list.append("m_sources[0] += {}".format(extension_ns.lanes_in_simd_reg_count)) %}
+         {% else %}
+            {% set implementation_ns.unique_data_ptr_count = (implementation_ns.lanes_per_pipeline_op_count*number_of_columns) | int %}
+            {% set max_inc = (implementation_ns.unique_data_ptr_count / (implementation_ns.ctor_parameter_names_list|length)) | int %}
+            {% for param in implementation_ns.ctor_parameter_names_list %}
+               {% for inc in range(max_inc) %}
+                  {% set param_name = param if inc == 0 else param ~ " + " ~ inc %}
+                  {% do implementation_ns.ctor_parameter_initialization_list.append(param_name) %}
+               {% endfor %}
+            {% endfor %}
+            {% for pos in range(implementation_ns.unique_data_ptr_count) %}
+               {% if max_inc == 1 %}
+                  {% do implementation_ns.ptr_increment_list.append("++m_sources[{}]".format(pos)) %}
+               {% else %}
+                  {% do implementation_ns.ptr_increment_list.append("m_sources[{}] += {}".format(pos, max_inc)) %}
+               {% endif %}
+            {% endfor %}
+         {% endif %}
+
+{% filter indent(width=3) +%}
+template<>
+{{ class_name }}<{{ extension_ns.simd_register_name }}, {{ pipeline_ops_count }}, {{ number_of_columns }}> {
+/**
+ * Implementation for {{ name }} input proxy.
+ * Number of Pipeline-Operators: {{ pipeline_ops_count }}.
+ * Number of Accessed Data:      {{ number_of_columns }}.
+ * SIMD Extension:               {{ extension_ns.simd_register_name }} ({{ extension_ns.simd_register_size }}bit wide SIMD registers).
+{% block description scoped %}{% endblock %}
+ */
+   public:
+      using {{ implementation_ns.data_ptr_t }} = {{ implementation_ns.source_ptr_type }};
+   {%+ block implementation scoped %}{% endblock %}
+
+   private:
+      std::array<{{ implementation_ns.data_ptr_t }}, {{ implementation_ns.unique_data_ptr_count }}> m_sources;
+};
+{% endfilter %}
+      {% endfor %}
+   {% endfor %}
+{% endfor %}

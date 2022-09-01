@@ -1,0 +1,11 @@
+---
+types:
+   - size_b: 8
+     alt_keys: ["uint8_t", "int8_t"]
+   - size_b: 16
+     alt_keys: ["uint16_t", "int16_t"]
+   - size_b: 32
+     alt_keys: ["uint32_t", "int32_t", "float"]
+   - size_b: 64
+     alt_keys: ["uint64_t", "int64_t", "double"]
+...

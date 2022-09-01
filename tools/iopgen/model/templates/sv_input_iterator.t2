@@ -1,0 +1,107 @@
+{% set class_name = 'sv_ip_' ~ loader_name ~ '_' ~ distribution_name %}
+
+template<VectorProcessingStyle Vec, uint16_t PipelineOperatorCount, uint16_t ColumnCount>
+class {{ class_name }};
+
+{% for iterator in iterators %}
+template<>
+{{ class_name }}<{{ extension['register_name'] }}, {{ iterator['number_of_pipeline_ops'] }}, {{ iterator['number_of_columns'] }}> {
+/**
+ * Implementation for {{ name }} input proxy.
+ * #Pipeline-Operators: {{ iterator['number_of_pipeline_ops'] }}.
+ * #Accessed Data:      {{ iterator['number_of_columns'] }}.
+ * SIMD Extension:      {{ extension['register_name'] }} ({{ extension['simd_register_size'] }} bit wide SIMD registers).
+ * Distribution:        {{ iterator['distribution_description'] }}
+{% filter indent(width=1) +%}
+{% block loader_description scoped %}{% endblock %}
+{% endfilter %}
+ */
+   public: //Typedefs
+      //Alias of data pointer type
+      using {{ iterator['dataptr_t'] }} = {{ extension['data_type'] }} const * __restrict__;
+
+   public: //Access methods
+      /**
+       * Creates a SIMD-Register from the current data pointers pointed to by {{ iterator['dataptr_container_name'] }} and increments the pointer accordingly.
+       */
+      auto operator()(void) -> typename {{ extension['register_name'] }}::register_type {
+         {%- filter indent(width=9) +%}
+         {% block load_implementation scoped %}
+         {%- for increment_instruction in iterator['dataptr_container_increment_ops_list'] %}
+{{ increment_instruction }};
+         {% endfor -%}
+         {% endblock -%}
+         {% endfilter %}
+      }
+   public: //Cast
+      //static auto next({{ class_name }} const & current) -> {{ class_name }} {
+      //
+      //}
+   public: //Constructors / Destructors
+      {{ class_name }}() = delete;
+      //Constructor
+      {{ class_name }}({{ iterator['ctor_parameter_list']|join(', ') }}):
+      {%- filter indent(width=8) +%}
+      {% block private_member_initialization scoped %}
+      {% set assignment = iterator['dataptr_container_name'] ~ "{" ~ (iterator['ctor_dataptr_container_inititialization_list']|join(', ')) ~ "}" %}
+      {{- assignment -}}
+      {% endblock %}
+      {% endfilter %}
+      {
+         {% block ctor scoped %}{% endblock %}
+      }
+      //Copy-Constructor
+      {{ class_name }}({{ class_name }} const & other):
+      {%- filter indent(width=8) +%}
+      {% block private_member_copy_initialization scoped %}
+      {% set assignment = iterator['dataptr_container_name'] ~ "{other." ~ iterator['dataptr_container_name'] ~ "}" %}
+      {{- assignment -}}
+      {% endblock %}
+      {% endfilter %}
+     {
+         {%- filter indent(width=9) +%}
+         {% block copy_ctor scoped %}{% endblock %}
+         {% endfilter %}
+     }
+      //Copy-Assignment
+      auto operator=({{ class_name }} const & other) -> {{ class_name }} & {
+         {{ iterator['dataptr_container_name'] }} = other.{{ iterator['dataptr_container_name'] }};
+         {%- filter indent(width=9) +%}
+         {% block copy_assignment_ctor scoped %}{% endblock %}
+         {% endfilter %}
+         return *this
+      }
+      //Move-Constructor
+      {{ class_name }}({{ class_name }} && other):
+      {%- filter indent(width=8) +%}
+      {% block private_member_move_initialization scoped %}
+      {% set assignment = iterator['dataptr_container_name'] ~ "{std::move(other." ~ iterator['dataptr_container_name'] ~ ")}" %}
+      {{- assignment -}}
+      {% endblock %}
+      {% endfilter %}
+      {
+         {%- filter indent(width=9) +%}
+         {% block move_ctor scoped %}{% endblock %}
+         {% endfilter %}
+      }
+      //Move-Assignment
+      auto operator=({{ class_name }} && other) -> {{ class_name }} & {
+         {{ iterator['dataptr_container_name'] }} = std::move(other.{{ iterator['dataptr_container_name'] }});
+         {%- filter indent(width=9) +%}
+         {% block move_assignment_ctor scoped %}{% endblock %}
+         {% endfilter %}
+         return *this;
+      }
+      //Destructor
+      ~{{ class_name }}() {
+         {%- filter indent(width=9) +%}
+         {% block destructor scoped %}{% endblock %}
+         {% endfilter %}
+      }
+   private: //Member
+      std::array<{{ extension['data_type'] }} const *, {{ iterator['unique_data_ptr_count'] }}> {{ iterator['dataptr_container_name'] }};
+      {%- filter indent(width=6) +%}
+      {% block private_member scoped %}{% endblock %}
+      {% endfilter %}
+};
+{% endfor %}

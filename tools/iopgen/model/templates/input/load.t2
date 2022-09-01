@@ -1,0 +1,56 @@
+{% extends 'sv_input_iterator.t2' %}
+
+{% set loader_name = 'buffer_load' %}
+
+{% block loader_description %}
+* Lanes per Pipeline-Operator:  MISSING NUMBER(!!!) TODO TODO TODO.
+{% endblock %}
+
+{% block private_member %}
+{{ extension['data_type'] }} * const m_buf;
+{% endblock %}
+
+{% block private_member_initialization %}
+{{- super() -}},
+m_buf{allocate_aligned<{{ extension['register_name'] }}>({{ extension['register_name'] }}::vector_size_B(), {{ extension['register_name'] }}::vector_alignment())}
+{% endblock %}
+
+{% block ctor %}{% endblock %}
+
+{% block private_member_copy_initialization %}
+{{- super() -}},
+m_buf{allocate_aligned<{{ extension['register_name'] }}>({{ extension['register_name'] }}::vector_size_B(), {{ extension['register_name'] }}::vector_alignment())}
+{% endblock %}
+
+{% block copy_ctor %}
+std::memcpy(reinterpret_cast<char*>(m_buf), reinterpret_cast<char*>(other.m_buf), {{ extension['register_name'] }}::vector_size_B());
+{% endblock %}
+
+{% block copy_assignment_ctor %}
+std::memcpy(reinterpret_cast<char*>(m_buf), reinterpret_cast<char*>(other.m_buf), {{ extension['register_name'] }}::vector_size_B());
+{% endblock %}
+
+{% block private_member_move_initialization %}
+{{- super() -}},
+m_buf{std::swap(other.m_buf, nullptr)}
+{% endblock %}
+
+{% block move_ctor %}{% endblock %}
+
+{% block move_assignment_ctor %}
+m_buf = std::swap(other.m_buf, nullptr);
+{% endblock %}
+
+{% block destructor %}
+if(m_buf != nullptr) {
+   deallocate<{{ extension['register_name'] }}>(m_buf);
+}
+{% endblock %}
+
+{% block load_implementation %}
+{% for derefence_instruction in iterator['dataptr_dereference_list'] %}
+m_buf[{{ loop.index - 1 }}] = {{ derefence_instruction }};
+{% endfor %}
+{{ super() -}}
+return load<{{ extension['register_name'] }}>(m_buf);
+{% endblock %}

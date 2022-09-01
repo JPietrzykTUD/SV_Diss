@@ -1,0 +1,45 @@
+
+{%- macro list_to_str(l) -%}
+{{ l|join(', ') }}
+{%- endmacro -%}
+
+{%- macro list_to_code_sequence(l, width=0) -%}
+{% filter indent(width=width) +%}
+   {% for el in l %}
+{{ el }};
+   {% endfor %}
+{% endfilter +%}
+{%- endmacro -%}
+
+{%- macro list_to_str_prefix(l, prefix) -%}
+   {% set tmp_list = [] %}
+   {% for el in l %}
+      {% do tmp_list.append("{}{}".format(prefix, el)) %}
+   {% endfor %}
+{{ tmp_list | join(', ') }}
+{%- endmacro -%}
+
+{%- macro variable_list_to_str(parameter_list, parameter_type_str) -%}
+   {% set tmp_list = [] %}
+   {% for el in parameter_list %}
+      {% do tmp_list.append("{} {}".format(parameter_type_str, el)) %}
+   {% endfor %}
+{{ tmp_list | join(', ') }}
+{%- endmacro -%}
+
+
+
+
+/*1,1*/ (data0): {data0}
+/*1,2*/ (data0): {data0, data0+1}
+/*1,4*/ (data0): {data0, data0+1, data0+2, data0+3}
+/*1,8*/ (data0): {data0, data0+1, data0+2, data0+3, data0+4, data0+5, data0+6, data0+7}
+
+/*2,2*/ (data0, data1): {data0, data1}
+/*2,4*/ (data0, data1): {data0, data0+1, data1, data1+1}
+/*2,8*/ (data0, data1): {data0, data0+1, data0+2, data0+3, data1, data1+1, data1+2, data1+3}
+
+/*4,4*/ (data0, data1, data2, data3): {data0, data1, data2, data3}
+/*4,8*/ (data0, data1, data2, data3): {data0, data0+1, data1, data1+1, data2, data2+1, data3, data3+1}
+
+/*8,8*/ (data0, data1, data2, data3, data4, data5, data6, data7): {data0, data1, data2, data3, data4, data5, data6, data7}

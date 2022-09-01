@@ -1,0 +1,27 @@
+{% extends 'sv_input_iterator.template' %}
+
+{% set name = 'buffer_load_uniform' %}
+
+{% block description %}
+ * Lanes per Pipeline-Operator:  {{ implementation_ns.lanes_per_pipeline_op_count }}.
+{% endblock %}
+
+{% block implementation %}
+private:
+      {{ extension_ns.data_type }} * const m_buf;
+   public:
+      {{ class_name }}({{- helper.variable_list_to_str(implementation_ns.ctor_parameter_names_list, implementation_ns.data_ptr_t) -}})
+      : m_sources{ {{- helper.list_to_str(implementation_ns.ctor_parameter_initialization_list) -}} },
+        m_buf{allocate_aligned<{{ extension_ns.simd_register_name }}>({{ extension_ns.simd_register_name }}::vector_size_B(), {{ extension_ns.simd_register_name }}::vector_alignment())}{}
+      ~{{ class_name }}() {
+         if(m_buf != nullptr) {
+            deallocate<{{ extension_ns.simd_register_name }}>(m_buf);
+         }
+      }
+
+   public:
+      auto operator()(void) -> typename {{ extension_ns.simd_register_name }}::register_type {
+         {{ helper.list_to_code_sequence(implementation_ns.ptr_increment_list, 9) }}
+      }
+{% endblock %}
+
