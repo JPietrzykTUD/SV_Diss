@@ -47,9 +47,32 @@ if(m_buf != nullptr) {
 }
 {% endblock %}
 
+{#{% block load_preamble#}
+
 {% block load_implementation %}
-{% for derefence_instruction in iterator['dataptr_dereference_list'] %}
-m_buf[{{ loop.index - 1 }}] = {{ derefence_instruction }};
+{% set load_ns = namespace(idx=0) %}
+{% for access_instruction_dict in distribution['access_instructions_list'] -%}
+   {% if access_instruction_dict['redundant_access'] %}
+   {# we introduce tmp variables here #}
+      {% for assignment in access_instruction_dict['assignments'] %}
+auto {{ assignment['variable_name'] }} = *{{- ptr_access_increment("{}[{}]".format(distribution['dataptr_container_name'], access_instruction_dict['dataptr_container_pos']), assignment['offset']) -}};
+{# auto {{ assignment['variable_name'] }} = *{{ distribution['dataptr_container_name'] }}[{{ access_instruction_dict['dataptr_container_pos'] }}]+{{ assignment['offset'] }}; #}
+      {% endfor %}
+   {% endif %}
+{% endfor -%}
+{%- for access_instruction_dict in distribution['access_instructions_list'] %}
+   {%- if access_instruction_dict['redundant_access'] %}
+      {# we access the local variables here #}
+      {%- for access in access_instruction_dict['access'] %}
+m_buf[{{ load_ns.idx }}] = {{ access }};
+      {% set load_ns.idx = load_ns.idx + 1 %}
+      {%- endfor %}
+   {%- else %}
+      {% for offset in access_instruction_dict['offsets'] %}
+m_buf[{{ load_ns.idx }}] = *{{- ptr_access_increment("{}[{}]".format(distribution['dataptr_container_name'], access_instruction_dict['dataptr_container_pos']), offset) -}};
+      {% set load_ns.idx = load_ns.idx + 1 %}
+      {% endfor %}
+   {%- endif -%}
 {% endfor %}
 {{ super() -}}
 return load<{{ extension['register_name'] }}>(m_buf);

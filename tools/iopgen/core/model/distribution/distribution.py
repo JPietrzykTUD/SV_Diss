@@ -1,5 +1,6 @@
+from __future__ import annotations
 import abc
-from typing import List, Any, Dict, Union
+from typing import List, Any, Dict, Union, Generator
 
 from core.model.tsl.extension import TslExtension
 
@@ -19,51 +20,45 @@ class SVDistribution:
     def _create_variable_name(cls, postfix: Any) -> str:
         return f"{SVDistribution.parameter_common_name}_{postfix}"
 
-    def _dataptr_container_access(self, idx: int) -> str:
-        return f"{SVDistribution.data_ptr_container_name}[{idx}]"
-
     @property
-    def _parameter_list(self) -> List[str]:
+    def parameter_list(self) -> List[str]:
         return [SVDistribution._create_variable_name(idx) for idx in range(self._number_of_columns)]
 
     @property
-    def ctor_parameters(self) -> List[str]:
-        return [f"{SVDistribution.data_ptr_t} {param}" for param in self._parameter_list]
+    def ctor_parameters_list(self) -> List[str]:
+        return [f"{SVDistribution.data_ptr_t} {param}" for param in self.parameter_list]
 
-    def _dataptr_container_increment(self, idx: int, inc: int) -> str:
-        if inc == 1:
-            return f"++{self._dataptr_container_access(idx)}"
-        return f"{self._dataptr_container_access(idx)} += {inc}"
 
-    def unique_data_ptr_count(self) -> int:
+    def increment_instructions_list(self) -> List[dict]:
         raise NotImplementedError
 
-    def ctor_dataptr_container_initialization_list(self) -> List[str]:
-        raise NotImplementedError
-
-    def dataptr_container_max_increment(self) -> int:
-        raise NotImplementedError
-
-    def dataptr_container_increment(self) -> List[str]:
+    def access_instructions_list(self) -> List[dict]:
         raise NotImplementedError
 
     def distribution_description(self) -> List[str]:
         raise NotImplementedError
 
-    def dataptr_dereference(self) -> List[str]:
+    @classmethod
+    def distribution_name(cls) -> str:
         raise NotImplementedError
 
-    def as_dict(self) -> Dict[str, Union[str, int, List[str]]]:
+    def _as_dict(self) -> Dict[str, Union[str, int, List[str]]]:
         return {
             "number_of_pipeline_ops": self._number_of_pipeline_ops,
             "number_of_columns": self._number_of_columns,
             "dataptr_t": SVDistribution.data_ptr_t,
             "dataptr_container_name": SVDistribution.data_ptr_container_name,
-            "unique_data_ptr_count": self.unique_data_ptr_count(),
-            "ctor_parameter_list": self.ctor_parameters,
-            "ctor_dataptr_container_inititialization_list": self.ctor_dataptr_container_initialization_list(),
-            "dataptr_container_max_increment": self.dataptr_container_max_increment(),
-            "dataptr_container_increment_ops_list": self.dataptr_container_increment(),
+            "ctor_parameter_list": self.ctor_parameters_list,
+            "ctor_dataptr_container_inititialization_list": self.parameter_list,
             "distribution_description": self.distribution_description(),
-            "dataptr_dereference_list": self.dataptr_dereference()
+            "access_instructions_list": self.access_instructions_list(),
+            "increment_instructions_list": self.increment_instructions_list()
+        }
+
+    @classmethod
+    def create(cls, distribution_class, tsl_extension: TslExtension) -> dict:
+        return {
+            "distribution_name": distribution_class.distribution_name(),
+            "extension": tsl_extension.as_dict(),
+            "distribution_variants": [distribution_class(tsl_extension, number_of_pipeline_ops, number_of_columns)._as_dict() for number_of_pipeline_ops in range(1, tsl_extension.lanes_in_simd_reg_count+1) for number_of_columns in range(1, number_of_pipeline_ops+1)]
         }
